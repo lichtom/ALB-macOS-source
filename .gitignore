@@ -1,0 +1,32 @@
+# Build artifacts
+ALB
+ALB.app
+ALB-Installer.dmg
+dmg_staging/
+
+# IDE build
+IDE/dist/
+IDE/build/
+IDE/*.spec
+
+# Object files
+*.o
+*.obj
+*.dylib
+*.so
+*.dll
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+*.icns
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
