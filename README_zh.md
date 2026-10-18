@@ -1,6 +1,7 @@
-# ALB 编程语言参考手册
+# ALB 编程语言参考手册 — macOS 版
 
-> **版本 0.1.1** | ALB 是一门基于 S-表达式的 Lisp 方言脚本语言，语法简洁、表达力强，支持函数式编程与模块化开发。
+> **版本 0.1.1** | ALB 是一门基于 S-表达式的 Lisp 方言脚本语言，语法简洁、表达力强，支持函数式编程与模块化开发。  
+> **本版本专为 macOS 优化。**
 
 **[English](README.md)**
 
@@ -46,13 +47,16 @@
   (set i (+ i 1)))
 ```
 
+**安装方式（macOS）：**
+1. 打开 DMG 安装包，将 `ALB.app` / `ALB_IDE.app` 拖入「应用程序」文件夹
+2. 右键点击应用 → **打开**（首次运行需绕过 Gatekeeper 限制）
+3. 首次运行后，`ALB` 命令自动注册到 `/usr/local/bin/`
+
 **运行方式：**
-- 双击 `.alb` 文件（IDE 打开）
-- 命令行：
-  - **Windows:** `ALB.exe script.alb`
-  - **Linux/macOS:** `./ALB script.alb`
-- IDE 中按 F5 运行
-- 启动 REPL：`ALB.exe`（Windows）或 `./ALB`（Linux/macOS）
+- 双击 `ALB.app` 打开终端 REPL
+- 命令行（安装后）：`ALB script.alb`
+- 启动 REPL：`ALB`
+- IDE 中按 **F5** 运行
 
 ---
 
@@ -334,8 +338,8 @@ ALB package hello.alb --obfuscate        # 带混淆打包
 
 **分发包 (.zip) 内容：**
 - `<name>.albc` — 编译后的字节码
-- `ALB.exe` — 运行时解释器
-- `run.bat` / `run.sh` — 启动脚本
+- `ALB` — macOS 运行时解释器
+- `run.sh` — 启动脚本
 - `manifest.json` — 元数据（入口文件、版本信息）
 
 ### 错误处理
@@ -796,36 +800,48 @@ ALB 提供 5 个标准库模块，通过 `(use "模块名")` 导入。
 
 ## 编译为可执行文件
 
-ALB 支持将 `.alb` 脚本编译为独立的可执行文件。
-
-- **Windows:** `.exe`
-- **Linux:** ELF 可执行文件（无扩展名）
-- **macOS:** Mach-O 可执行文件（无扩展名）
+ALB 支持将 `.alb` 脚本编译为 macOS 独立可执行文件（Mach-O 格式）。
 
 ### 命令行编译
 
 ```bash
-; 普通编译（运行时需 lib/ 目录）
-ALB -b script.alb -o script      # Linux/macOS
-ALB.exe -b script.alb -o script.exe  # Windows
+# 普通编译（运行时需 lib/ 目录）
+ALB -b script.alb -o script
 
-; 打包编译（库嵌入，完全独立）
-ALB -b script.alb --embed -o script      # Linux/macOS
-ALB.exe -b script.alb --embed -o script.exe  # Windows
+# 打包编译（库嵌入，完全独立）
+ALB -b script.alb --embed -o script
 ```
 
 ### IDE 编译
 
-- **F7** — Build Executable（普通编译）
-- **F8** — Build with Libraries（打包编译，DLL 和库源码全部嵌入）
+- **F7** — 编译可执行文件（普通编译）
+- **F8** — 打包编译（所有库嵌入，完全独立）
 
 ### 命令行帮助
 
 ```bash
-ALB.exe -h              ; 显示帮助
-ALB.exe -h --list       ; 列出所有内置函数
-ALB.exe -h print        ; 查看 print 函数帮助
-ALB.exe -h gui          ; 查看 gui 库帮助
+ALB -h              # 显示帮助
+ALB -h --list       # 列出所有内置函数
+ALB -h print        # 查看 print 函数帮助
+ALB -h gui          # 查看 gui 库帮助
+```
+
+---
+
+## 从源码构建（macOS）
+
+需要 Xcode Command Line Tools：
+```bash
+xcode-select --install
+```
+
+构建：
+```bash
+make          # 编译 ALB 二进制
+make app      # 构建 ALB.app
+make dmg      # 构建 DMG 安装包（含 ALB.app + ALB_IDE.app + 文档）
+make install  # 安装 ALB 到 /usr/local/bin
+make clean    # 清理构建产物
 ```
 
 ---

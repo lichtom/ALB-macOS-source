@@ -1,6 +1,7 @@
-# ALB Programming Language Reference
+# ALB Programming Language Reference — macOS Edition
 
-> **Version 0.1.1** | ALB is a Lisp-dialect scripting language based on S-expressions, featuring concise syntax, strong expressiveness, and support for functional programming and modular development.
+> **Version 0.1.1** | ALB is a Lisp-dialect scripting language based on S-expressions, featuring concise syntax, strong expressiveness, and support for functional programming and modular development.  
+> **This build is optimized exclusively for macOS.**
 
 **[中文文档](README_zh.md)**
 
@@ -46,13 +47,16 @@
   (set i (+ i 1)))
 ```
 
+**How to install (macOS):**
+1. Open the DMG installer and drag `ALB.app` / `ALB_IDE.app` to Applications
+2. Right-click the app → **Open** (first time only, to bypass Gatekeeper)
+3. The `ALB` command is automatically registered to `/usr/local/bin/` on first run
+
 **How to run:**
-- Double-click a `.alb` file (opens in IDE)
-- Command line:
-  - **Windows:** `ALB.exe script.alb`
-  - **Linux/macOS:** `./ALB script.alb`
-- Press F5 in the IDE
-- Start REPL: `ALB.exe` (Windows) or `./ALB` (Linux/macOS)
+- Double-click `ALB.app` to open a Terminal REPL
+- Command line (after install): `ALB script.alb`
+- Start REPL: `ALB`
+- In the IDE: press **F5**
 
 ---
 
@@ -334,8 +338,8 @@ ALB package hello.alb --obfuscate        # with obfuscation
 
 **Distribution package (.zip) contains:**
 - `<name>.albc` — compiled bytecode
-- `ALB.exe` — runtime interpreter
-- `run.bat` / `run.sh` — launcher scripts
+- `ALB` — macOS runtime interpreter
+- `run.sh` — launcher script
 - `manifest.json` — metadata (entry point, versions)
 
 ### Error Handling
@@ -796,34 +800,48 @@ SDL2-based 2D game engine providing window management, graphics rendering, input
 
 ## Compiling to Executable
 
-ALB supports compiling `.alb` scripts into standalone executables.
-
-- **Windows:** `.exe`
-- **Linux:** ELF binary (no extension)
-- **macOS:** Mach-O binary (no extension)
+ALB supports compiling `.alb` scripts into standalone macOS executables (Mach-O binary).
 
 ### Command-Line Compilation
 
 ```bash
-; Normal compile (requires lib/ at runtime)
-ALB.exe -b script.alb -o script.exe
+# Normal compile (requires lib/ at runtime)
+ALB -b script.alb -o script
 
-; Embedded compile (libraries bundled into exe, fully standalone)
-ALB.exe -b script.alb --embed -o script.exe
+# Embedded compile (libraries bundled into binary, fully standalone)
+ALB -b script.alb --embed -o script
 ```
 
 ### IDE Compilation
 
 - **F7** — Build Executable (normal compile)
-- **F8** — Build with Libraries (embedded compile, DLLs and source bundled in)
+- **F8** — Build with Libraries (embedded compile, all libs bundled in)
 
 ### Command-Line Help
 
 ```bash
-ALB.exe -h              ; Show help
-ALB.exe -h --list       ; List all built-in functions
-ALB.exe -h print        ; View help for print function
-ALB.exe -h gui          ; View help for gui library
+ALB -h              # Show help
+ALB -h --list       # List all built-in functions
+ALB -h print        # View help for print function
+ALB -h gui          # View help for gui library
+```
+
+---
+
+## Building from Source (macOS)
+
+Requires Xcode Command Line Tools:
+```bash
+xcode-select --install
+```
+
+Build:
+```bash
+make          # Compile ALB binary
+make app      # Build ALB.app bundle
+make dmg      # Build DMG installer (includes ALB.app + ALB_IDE.app + docs)
+make install  # Install ALB to /usr/local/bin
+make clean    # Clean build artifacts
 ```
 
 ---

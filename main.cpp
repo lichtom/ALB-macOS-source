@@ -20,20 +20,10 @@
 #include <windows.h>
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <urlmon.h>
 #include <conio.h>
+#pragma comment(lib, "urlmon.lib")
 #pragma comment(lib, "shlwapi.lib")
-
-// Dynamic loading for URLDownloadToFileA (avoids static link to urlmon.lib)
-#ifdef _WIN32
-typedef long (WINAPI *URLDownloadToFileA_fn)(void*, const char*, const char*, unsigned long, void*);
-static URLDownloadToFileA_fn pURLDownloadToFileA = nullptr;
-static void init_urlmon() {
-    if(!pURLDownloadToFileA) {
-        HMODULE h = LoadLibraryA("urlmon.dll");
-        if(h) pURLDownloadToFileA = (URLDownloadToFileA_fn)GetProcAddress(h, "URLDownloadToFileA");
-    }
-}
-#endif
 #pragma comment(lib, "ws2_32.lib")
 #else
 // POSIX (Linux / macOS)
@@ -63,6 +53,36 @@ typedef int SOCKET;
 using namespace std;
 
 static bool alb_ide_mode = false;
+
+// Portable directory scanning
+struct DirEntry { string name; bool is_dir; };
+static void scan_dir_entries(const string& dir, vector<DirEntry>& out) {
+#ifdef _WIN32
+    WIN32_FIND_DATAA fd;
+    string search = dir + "\\*";
+    HANDLE hFind = FindFirstFileA(search.c_str(), &fd);
+    if(hFind != INVALID_HANDLE_VALUE) {
+        do {
+            string n = fd.cFileName;
+            if(n == "." || n == "..") continue;
+            out.push_back({n, (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0});
+        } while(FindNextFileA(hFind, &fd));
+        FindClose(hFind);
+    }
+#else
+    DIR* d = opendir(dir.c_str());
+    if(d) {
+        struct dirent* ent;
+        while((ent = readdir(d)) != nullptr) {
+            string n = ent->d_name;
+            if(n == "." || n == "..") continue;
+            bool isd = (ent->d_type == DT_DIR);
+            out.push_back({n, isd});
+        }
+        closedir(d);
+    }
+#endif
+}
 
 
 string __version__ = "0.1.1";
@@ -127,6 +147,46 @@ void auto_add_to_path() {
         (LPARAM)"Environment", SMTO_ABORTIFHUNG, 5000, &dwReturnValue);
     cout<<"[ALB] Added to PATH: "<<exe_dir<<"\n"
         <<"[ALB] Please restart your terminal to use 'ALB' from any directory.\n\n";
+#elif defined(__APPLE__)
+    // macOS: create symlink in /usr/local/bin
+    string exe_dir = get_exe_dir();
+    string exe_path = exe_dir + "/ALB";
+    string link_path = "/usr/local/bin/ALB";
+    
+    // Check if already linked correctly
+    char buf[4096];
+    ssize_t len = readlink(link_path.c_str(), buf, sizeof(buf)-1);
+    if(len > 0) {
+        buf[len] = '\0';
+        string current_target(buf);
+        // Resolve to absolute path for comparison
+        char real_current[PATH_MAX];
+        if(realpath(current_target.c_str(), real_current)) {
+            if(string(real_current) == exe_path) return;  // Already correctly linked
+        } else if(current_target == exe_path) {
+            return;  // Already correctly linked
+        }
+    }
+    
+    // Create /usr/local/bin if not exists
+    struct stat st;
+    if(stat("/usr/local/bin", &st) != 0) {
+        system("mkdir -p /usr/local/bin 2>/dev/null");
+    }
+    
+    // Remove old link if exists
+    unlink(link_path.c_str());
+    
+    // Try to create symlink (may need sudo)
+    if(symlink(exe_path.c_str(), link_path.c_str()) == 0) {
+        cout << "[ALB] Registered command: ALB -> " << exe_path << "\n\n";
+    } else {
+        // Failed, try with sudo via osascript
+        string cmd = "osascript -e 'do shell script \"ln -sf \\\"" + exe_path + "\\\" \\\"" + link_path + "\\\"\" with administrator privileges' 2>/dev/null";
+        if(system(cmd.c_str()) == 0) {
+            cout << "[ALB] Registered command: ALB -> " << exe_path << "\n\n";
+        }
+    }
 #endif
 }
 
@@ -1496,26 +1556,6 @@ void register_builtins(EnvPtr env) {
         if(!getline(cin,line)) return nil_val();
         try{return num_val(stod(line));}catch(...){return str_val(line);}
     });
-    reg("read",[](vector<ValPtr> a,EnvPtr){
-        if(alb_ide_mode){
-            cerr.write("[INPUT_NEEDED]\n",15);
-            cerr.flush();
-        }
-        string line;
-        if(!getline(cin,line)) return nil_val();
-        try{return num_val(stod(line));}catch(...){return str_val(line);}
-    });
-    reg("out",[](vector<ValPtr> a,EnvPtr){
-        bool has_nl = false;
-        for(size_t i=0;i<a.size();i++){
-            if(i) cout<<" ";
-            cout<<a[i]->str();
-            if(a[i]->kind==Val::STR && a[i]->s.find('\n')!=string::npos) has_nl=true;
-        }
-        if(has_nl) cout<<"\n";
-        cout.flush();
-        return nil_val();
-    });
     reg("press",[](vector<ValPtr> a,EnvPtr){
         string want = a.empty() ? "any" : a[0]->str();
         auto vk_to_name = [](int vk)->string{
@@ -2061,8 +2101,8 @@ void register_builtins(EnvPtr env) {
         return str_val(w(a[0]));
     });
 
-    // Serialization: read-sexpr (sexpr string -> value)
-    reg("read-sexpr",[](vector<ValPtr> a,EnvPtr){
+    // Serialization: read (sexpr string -> value)
+    reg("read",[](vector<ValPtr> a,EnvPtr){
         if(a.empty()) return nil_val();
         string s=a[0]->str();
         int pos=0;
@@ -2732,7 +2772,7 @@ void register_builtins(EnvPtr env) {
         if(s==INVALID_SOCKET) return num_val(-1);
         struct sockaddr_in addr; addr.sin_family=AF_INET;
         addr.sin_addr.s_addr=INADDR_ANY; addr.sin_port=htons((u_short)a[0]->n);
-        if(bind(s,(struct sockaddr*)&addr,sizeof(addr))==SOCKET_ERROR){
+        if(::bind(s,(struct sockaddr*)&addr,sizeof(addr))==SOCKET_ERROR){
             closesocket(s); return num_val(-1);
         }
         listen(s,5);
@@ -2741,7 +2781,7 @@ void register_builtins(EnvPtr env) {
     reg("net-accept",[](vector<ValPtr> a,EnvPtr){
         if(a.empty()) return num_val(-1);
         SOCKET s=(SOCKET)(long long)a[0]->n;
-        struct sockaddr_in addr; int len=sizeof(addr);
+        struct sockaddr_in addr; socklen_t len=sizeof(addr);
         SOCKET c=accept(s,(struct sockaddr*)&addr,&len);
         if(c==INVALID_SOCKET) return num_val(-1);
         return num_val((double)c);
@@ -3413,46 +3453,21 @@ string find_gpp() {
     return "";
 }
 
-// FNV-1a 64-bit hash
-static unsigned long long hash_bytes(const char* data, size_t len) {
-    unsigned long long h = 14695981039346656037ULL;
-    for(size_t i = 0; i < len; i++) {
-        h ^= (unsigned char)data[i];
-        h *= 1099511628211ULL;
-    }
-    return h;
-}
-
-static string compute_cpp_hash(const vector<string>& files) {
-    ostringstream ss;
-    for(auto& f : files) {
-        ifstream in(f, ios::binary);
-        if(!in) continue;
-        ostringstream buf; buf << in.rdbuf();
-        string c = buf.str();
-        unsigned long long h = hash_bytes(c.data(), c.size());
-        ss << hex << h << ":";
-    }
-    return ss.str();
-}
-
-static bool load_saved_hash(const string& path) {
-    ifstream in(path);
-    if(!in.good()) return false;
-    string s; getline(in, s);
-    return !s.empty();
-}
-
-static string read_saved_hash(const string& path) {
-    ifstream in(path);
-    if(!in.good()) return "";
-    string s; getline(in, s);
-    return s;
-}
-
-static void save_hash(const string& path, const string& hash) {
-    ofstream out(path);
-    out << hash << "\n";
+// Get file modification time
+static long long get_mtime(const string& path) {
+#ifdef _WIN32
+    HANDLE h = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ,
+                           NULL, OPEN_EXISTING, 0, NULL);
+    if(h == INVALID_HANDLE_VALUE) return 0;
+    FILETIME ft;
+    GetFileTime(h, NULL, NULL, &ft);
+    CloseHandle(h);
+    return ((long long)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+#else
+    struct stat st;
+    if(stat(path.c_str(), &st) != 0) return 0;
+    return (long long)st.st_mtime;
+#endif
 }
 
 // Compile .cpp files in folder to shared library (DLL/SO/DYLIB)
@@ -3482,32 +3497,14 @@ bool compile_cpp_dll(const string& folder, const string& name) {
 #else
     string dll_path = folder + "/" + name + ".so";
 #endif
-
-    // Hash-based recompilation check (.cppb file)
-    string cppb_path = folder;
-#ifdef _WIN32
-    cppb_path += "\\";
-#else
-    cppb_path += "/";
-#endif
-    cppb_path += name + ".cppb";
-
-    string current_hash = compute_cpp_hash(cpp_files);
-    bool needs_recompile = false;
-
-    // Must recompile if DLL doesn't exist
-    {
-        ifstream test(dll_path);
-        if(!test.good()) needs_recompile = true;
-    }
-
-    // Must recompile if .cppb doesn't exist or hash mismatch
+    // Check if recompilation needed
+    long long dll_time = get_mtime(dll_path);
+    bool needs_recompile = (dll_time == 0);
     if(!needs_recompile) {
-        string saved = read_saved_hash(cppb_path);
-        if(saved.empty() || saved != current_hash)
-            needs_recompile = true;
+        for(auto& f : cpp_files) {
+            if(get_mtime(f) > dll_time) { needs_recompile = true; break; }
+        }
     }
-
     if(!needs_recompile) return true;
 
     string gpp = find_gpp();
@@ -3569,8 +3566,6 @@ bool compile_cpp_dll(const string& folder, const string& name) {
         return false;
     }
     cout << "[ALB] " << name << " compiled successfully.\n";
-    // Save content hash to .cppb
-    save_hash(cppb_path, current_hash);
     return true;
 }
 
@@ -3675,16 +3670,6 @@ string resolve_module(const string& name) {
         if(parent_lib != "lib" && parent_lib != exe_lib)
             lib_bases.push_back(parent_lib);
     }
-#ifdef __APPLE__
-    // macOS: ~/Library/Application Support/ALB/lib
-    {
-        const char* home = getenv("HOME");
-        if(home) {
-            string app_lib = string(home) + "/Library/Application Support/ALB/lib";
-            lib_bases.push_back(app_lib);
-        }
-    }
-#endif
 
     for(auto& lb : lib_bases) {
         string folder = lb + "/" + name;
@@ -3766,13 +3751,6 @@ void run_repl(EnvPtr env) {
 
 // Get the lib directory path
 string get_lib_dir() {
-#ifdef __APPLE__
-    // macOS: ~/Library/Application Support/ALB/lib
-    const char* home = getenv("HOME");
-    string lib_path = home ? string(home) + "/Library/Application Support/ALB/lib" : get_exe_dir() + "/lib";
-    { string cmd_mkdir = "mkdir -p \"" + lib_path + "\""; system(cmd_mkdir.c_str()); }
-    return lib_path;
-#else
     string exe_dir = get_exe_dir();
     string lib_path = exe_dir + "/lib";
 #ifdef _WIN32
@@ -3781,20 +3759,14 @@ string get_lib_dir() {
     { string cmd_mkdir = "mkdir -p \"" + lib_path + "\""; system(cmd_mkdir.c_str()); }
 #endif
     return lib_path;
-#endif
 }
 
 // Download file from URL
 bool download_file(const string& url, const string& dest) {
     cout << "Downloading: " << url << "\n";
 #ifdef _WIN32
-    init_urlmon();
-    if(!pURLDownloadToFileA) {
-        cerr << "Download failed: urlmon.dll not available\n";
-        return false;
-    }
-    long hr = pURLDownloadToFileA(NULL, url.c_str(), dest.c_str(), 0, NULL);
-    if(hr < 0) {
+    HRESULT hr = URLDownloadToFileA(NULL, url.c_str(), dest.c_str(), 0, NULL);
+    if(FAILED(hr)) {
         cerr << "Download failed: " << url << "\n";
         return false;
     }
@@ -4196,9 +4168,7 @@ static unordered_map<string,pair<string,string>> get_builtin_docs() {
     // sig, desc
     d["print"]  = {"(print arg1 ...)", "Print values followed by newline"};
     d["prints"] = {"(prints arg1 ...)", "Print values without newline"};
-    d["out"]    = {"(out arg1 ...)", "Print values, no newline unless content contains \\n"};
     d["input"]  = {"(input prompt?)", "Read line from stdin, returns number or string"};
-    d["read"]   = {"(read)", "Read line from stdin without prompt, returns number or string"};
     d["press"]  = {"(press key?)", "Wait for key press (any, Return, Escape, space, ...)"};
     d["type"]   = {"(type val)", "Return type name: nil/number/string/list/function"};
     d["len"]    = {"(len val)", "Return length of string or list"};
@@ -4280,7 +4250,7 @@ static unordered_map<string,pair<string,string>> get_builtin_docs() {
     d["throw"]={"(throw val)","Raise error"};
     d["error"]={"(error msg)","Raise error with message"};
     d["write"]={"(write val)","Serialize value to string"};
-    d["read-sexpr"]={"(read-sexpr s)","Deserialize s-expression string to value"};
+    d["read"]={"(read s)","Deserialize string to value"};
     d["test"]={"(test actual expected)","Compare values, report pass/fail"};
     d["assert"]={"(assert cond) / (assert cond msg)","Assert condition is truthy, throw if not"};
     d["json-parse"]={"(json-parse str)","Parse JSON string to ALB value"};
@@ -4422,18 +4392,15 @@ static void show_help_topic(const string& topic) {
             }
             // Scan .alb files for function/const definitions
             cout << "\nFunctions:\n";
-            WIN32_FIND_DATAA fd;
-            string search = folder + "\\*.alb";
-            HANDLE hFind = FindFirstFileA(search.c_str(), &fd);
-            if(hFind != INVALID_HANDLE_VALUE) {
+            vector<DirEntry> entries;
+            scan_dir_entries(folder, entries);
+            {
                 vector<string> files;
-                do {
-                    string fn = fd.cFileName;
-                    if(fn != "__init__.alb" && fn != "cli.alb"
-                       && !(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-                        files.push_back(folder + "/" + fn);
-                } while(FindNextFileA(hFind, &fd));
-                FindClose(hFind);
+                for(auto& e : entries) {
+                    if(!e.is_dir && e.name.size()>=4 && e.name.substr(e.name.size()-4)==".alb"
+                       && e.name != "__init__.alb" && e.name != "cli.alb")
+                        files.push_back(folder + "/" + e.name);
+                }
                 sort(files.begin(), files.end());
                 for(auto& fp : files) {
                     ifstream inf(fp);
@@ -4595,18 +4562,14 @@ static void show_help_topic(const string& topic) {
     }
     unordered_set<string> shown;
     for(auto& lb : lib_bases) {
-        WIN32_FIND_DATAA fd2;
-        string sp2 = lb + "\\*";
-        HANDLE hF2 = FindFirstFileA(sp2.c_str(), &fd2);
-        if(hF2 != INVALID_HANDLE_VALUE) {
-            do {
-                string n = fd2.cFileName;
-                if(n=="."||n==".."||!(fd2.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)) continue;
-                if(shown.count(n)) continue;
-                string ip = lb+"/"+n+"/__init__.alb";
-                if(ifstream(ip).good()) { cout << "  " << n << "\n"; shown.insert(n); }
-            } while(FindNextFileA(hF2, &fd2));
-            FindClose(hF2);
+        vector<DirEntry> entries2;
+        scan_dir_entries(lb, entries2);
+        for(auto& e : entries2) {
+            string n = e.name;
+            if(!e.is_dir) continue;
+            if(shown.count(n)) continue;
+            string ip = lb+"/"+n+"/__init__.alb";
+            if(ifstream(ip).good()) { cout << "  " << n << "\n"; shown.insert(n); }
         }
     }
     cout << "\nUse ALB -h <name> to see details.\n";
@@ -4733,7 +4696,7 @@ void show_help() {
         <<"  Func:    map, filter, fold, apply\n"
         <<"  String:  str, num, substr\n"
         <<"  Error:   try, throw, error\n"
-        <<"  Serial:  write, read-sexpr\n"
+        <<"  Serial:  write, read\n"
         <<"  Test:    test, assert\n"
         <<"  Meta:    doc, type\n"
         <<"  JSON:    json-parse, json-serialize\n"
@@ -4745,37 +4708,12 @@ void show_help() {
         <<"  cli.alb        CLI entry point (for ALB -m <name>)\n";
 }
 
-#ifdef __APPLE__
-// macOS: copy bundled lib files to ~/Library/Application Support/ALB/lib on first run
-static void init_macos_lib_dir() {
-    const char* home = getenv("HOME");
-    if(!home) return;
-    string app_lib = string(home) + "/Library/Application Support/ALB/lib";
-    string exe_dir = get_exe_dir();
-    string bundled_lib = exe_dir + "/lib";
-    
-    // Create target dirs
-    system(("mkdir -p \"" + app_lib + "\"").c_str());
-    
-    // Check if bundled lib exists
-    struct stat st;
-    if(stat(bundled_lib.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) return;
-    
-    // Use rsync to copy (only newer files, preserves structure)
-    string cmd = "rsync -a --update \"" + bundled_lib + "/\" \"" + app_lib + "/\" 2>/dev/null";
-    system(cmd.c_str());
-}
-#endif
-
 int main(int argc, char* argv[]) {
     // Detect IDE mode
     if(getenv("ALB_IDE_MODE")) {
         alb_ide_mode = true;
         setvbuf(stdout, NULL, _IONBF, 0);  // unbuffered stdout for pipe mode
     }
-#ifdef __APPLE__
-    init_macos_lib_dir();
-#endif
     auto_add_to_path();
     auto_file_assoc();
     
@@ -4926,18 +4864,13 @@ int main(int argc, char* argv[]) {
                 { ifstream test(dll_path); if(test.good()) load_dll_into(dll_path, env); }
 
                 // Load all submodules
-                WIN32_FIND_DATAA fd;
-                string search = folder + "\\*.alb";
-                HANDLE hFind = FindFirstFileA(search.c_str(), &fd);
+                vector<DirEntry> entries;
+                scan_dir_entries(folder, entries);
                 vector<string> sub_albs;
-                if(hFind != INVALID_HANDLE_VALUE) {
-                    do {
-                        string fn = fd.cFileName;
-                        if(fn != "__init__.alb" && fn != "cli.alb"
-                           && !(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-                            sub_albs.push_back(folder + "/" + fn);
-                    } while(FindNextFileA(hFind, &fd));
-                    FindClose(hFind);
+                for(auto& e : entries) {
+                    if(!e.is_dir && e.name.size()>=4 && e.name.substr(e.name.size()-4)==".alb"
+                       && e.name != "__init__.alb" && e.name != "cli.alb")
+                        sub_albs.push_back(folder + "/" + e.name);
                 }
                 sort(sub_albs.begin(), sub_albs.end());
                 for(auto& sf : sub_albs) {

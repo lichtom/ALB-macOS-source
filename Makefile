@@ -66,12 +66,17 @@ dmg: app
 	@mkdir -p dmg_staging
 	@cp -R $(APP) dmg_staging/
 	@test -d IDE/dist/ALB_IDE.app && cp -R IDE/dist/ALB_IDE.app dmg_staging/ || echo "(IDE app not found, skipping)"
+	@cp ALB-macOS-source/README.md dmg_staging/ 2>/dev/null || true
+	@cp ALB-macOS-source/README_zh.md dmg_staging/ 2>/dev/null || true
 	@$(CREATE_DMG) \
 		--volname "ALB v0.1.1" \
-		--window-size 600 400 \
-		--icon-size 100 \
-		--icon "$(APP)" 150 200 \
-		--app-drop-link 450 200 \
+		--window-size 700 450 \
+		--icon-size 90 \
+		--icon "$(APP)" 120 180 \
+		--icon "ALB_IDE.app" 120 320 \
+		--icon "README.md" 350 180 \
+		--icon "README_zh.md" 350 320 \
+		--app-drop-link 560 250 \
 		--overwrite \
 		$(DMG) \
 		dmg_staging
