@@ -4709,6 +4709,10 @@ void show_help() {
 }
 
 int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    SetConsoleOutputCP(65001);
+    SetConsoleCP(65001);
+#endif
     // Detect IDE mode
     if(getenv("ALB_IDE_MODE")) {
         alb_ide_mode = true;
