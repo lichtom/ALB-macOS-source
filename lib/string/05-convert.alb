@@ -1,0 +1,24 @@
+; ---- String Conversion ----
+(let words (func (list s) "Split string by whitespace into word list"
+  (str-split s " ")))
+
+(let unwords (func (list lst) "Join word list with spaces"
+  (str-join lst " ")))
+
+(let lines (func (list s) "Split string by newline into line list"
+  (str-split s "\n")))
+
+(let unlines (func (list lst) "Join line list with newlines"
+  (str-join lst "\n")))
+
+(let str-chars (func (list s) "Convert string to list of single-character strings"
+  (map (func (list i) (substr s i 1)) (range 0 (len s)))))
+
+(let str-from-chars (func (list lst) "Join character list into string"
+  (str-join lst "")))
+
+(let str->list (func (list s) "Alias: convert string to character list"
+  (str-chars s)))
+
+(let list->str (func (list lst) "Convert list to display string"
+  (str lst)))

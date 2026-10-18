@@ -1,0 +1,17 @@
+; ---- String Padding ----
+(let str-pad-left (func (list s n ch) "Pad string on left to length n with character ch"
+  (let need (- n (len s)))
+  (if (<= need 0) s
+    (str-join (list (str-repeat ch need) s) ""))))
+
+(let str-pad-right (func (list s n ch) "Pad string on right to length n with character ch"
+  (let need (- n (len s)))
+  (if (<= need 0) s
+    (str-join (list s (str-repeat ch need)) ""))))
+
+(let str-center (func (list s n ch) "Center string in field of width n with character ch"
+  (let need (- n (len s)))
+  (if (<= need 0) s
+    (let left (/ need 2))
+    (let right (- need left))
+    (str-join (list (str-repeat ch left) s (str-repeat ch right)) ""))))

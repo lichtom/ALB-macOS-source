@@ -1,0 +1,19 @@
+; =============================================================================
+; ALB String Standard Library
+; Module: string
+; Version: 0.0.6
+; Usage: (use "string")
+; =============================================================================
+;
+; Supplements built-in string functions:
+;   str-split, str-join, str-replace, str-find, str-trim,
+;   str-upper, str-lower, str-starts?, str-ends?, str-repeat,
+;   str-reverse, char-code, code-char, substr
+;
+; Submodules (auto-loaded):
+;   01-query.alb       - str-contains?, str-empty?, str-blank?, str-count
+;   02-extract.alb     - str-at, str-take, str-drop, str-sub, str-slice
+;   03-transform.alb   - str-capitalize, str-title, str-strip-*, str-indent
+;   04-padding.alb     - str-pad-left, str-pad-right, str-center
+;   05-convert.alb     - str-chars, str-from-chars, words, lines
+; =============================================================================

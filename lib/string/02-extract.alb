@@ -1,0 +1,28 @@
+; ---- String Extraction ----
+(let str-at (func (list s i) "Get character at index i as string"
+  (substr s i 1)))
+
+(let str-take (func (list s n) "Take first n characters"
+  (substr s 0 n)))
+
+(let str-drop (func (list s n) "Drop first n characters, return rest"
+  (substr s n)))
+
+(let str-take-right (func (list s n) "Take last n characters"
+  (let sl (len s))
+  (if (>= n sl) s
+    (substr s (- sl n)))))
+
+(let str-drop-right (func (list s n) "Drop last n characters"
+  (let sl (len s))
+  (if (>= n sl) ""
+    (substr s 0 (- sl n)))))
+
+(let str-sub (func (list s start end) "Substring from start to end (exclusive)"
+  (substr s start (- end start))))
+
+(let str-slice (func (list s start end) "Slice string [start, end). Negative indices from end"
+  (let sl (len s))
+  (let a (if (< start 0) (+ sl start) start))
+  (let b (if (< end 0) (+ sl end) end))
+  (substr s a (- b a))))

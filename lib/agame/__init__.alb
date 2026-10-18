@@ -1,0 +1,251 @@
+﻿; =============================================================================
+; ALB Agame Standard Library - 2D Game & Interactive Animation Engine
+; Module: agame
+; Version: 0.1.1
+; Usage: (use "agame")
+;
+; Backend: SDL2 (must be installed on system)
+;   Windows: Download SDL2-devel from https://libsdl.org
+;   Linux:   sudo apt-get install libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev
+;   macOS:   brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer
+;
+; Structure:
+;   __init__.alb  - This file (ALB API wrappers, constants, helpers)
+;   agame.cpp     - C++ SDL2 extension (auto-compiled to DLL/SO/DYLIB)
+;
+; Quick Start:
+;   (use "agame")
+;   (agame-init "My Game" 800 600)
+;   (agame-set-color agame-white)
+;   (agame-clear)
+;   (agame-set-color agame-red)
+;   (agame-fill-rect 100 100 200 150)
+;   (agame-present)
+;   (agame-delay 2000)
+;   (agame-quit)
+;
+; Game Loop:
+;   (use "agame")
+;   (agame-init "Game" 640 480)
+;   (let x 100)
+;   (let y 100)
+;   (while (not (agame-should-quit))
+;     (agame-clear)
+;     (agame-set-color agame-blue)
+;     (agame-fill-circle x y 20)
+;     (when (agame-key-pressed "right") (set x (+ x 5)))
+;     (when (agame-key-pressed "left")  (set x (- x 5)))
+;     (when (agame-key-pressed "down")  (set y (+ y 5)))
+;     (when (agame-key-pressed "up")    (set y (- y 5)))
+;     (agame-present)
+;     (agame-delay 16))
+;   (agame-quit)
+;
+; DLL-provided functions:
+;   agame-init, agame-quit, agame-clear, agame-present, agame-delay
+;   agame-set-color, agame-draw-point, agame-draw-line
+;   agame-draw-rect, agame-fill-rect, agame-draw-circle, agame-fill-circle
+;   agame-draw-triangle, agame-fill-triangle
+;   agame-poll-event, agame-key-down, agame-key-up
+;   agame-mouse-x, agame-mouse-y, agame-mouse-down
+;   agame-load-image, agame-draw-image, agame-free-image
+;   agame-load-font, agame-draw-text, agame-free-font
+;   agame-load-sound, agame-play-sound, agame-free-sound
+;   agame-window-width, agame-window-height, agame-set-title
+; =============================================================================
+
+; ---------- Color Constants ----------
+; Format: (r g b a) as list, used by agame-set-color
+
+(const agame-black     (list   0   0   0 255))
+(const agame-white     (list 255 255 255 255))
+(const agame-red       (list 255   0   0 255))
+(const agame-green     (list   0 255   0 255))
+(const agame-blue      (list   0   0 255 255))
+(const agame-yellow    (list 255 255   0 255))
+(const agame-cyan      (list   0 255 255 255))
+(const agame-magenta   (list 255   0 255 255))
+(const agame-orange    (list 255 165   0 255))
+(const agame-purple    (list 128   0 128 255))
+(const agame-pink      (list 255 192 203 255))
+(const agame-brown     (list 139  69  19 255))
+(const agame-gray      (list 128 128 128 255))
+(const agame-darkgray  (list  64  64  64 255))
+(const agame-lightgray (list 192 192 192 255))
+
+; ---------- Key Constants ----------
+; Used with agame-key-down / agame-key-pressed
+; Note: agame-key-down and agame-key-up are defined as wrapper functions below
+
+(const agame-key-left   "left")
+(const agame-key-right  "right")
+(const agame-key-space  "space")
+(const agame-key-enter  "return")
+(const agame-key-escape "escape")
+(const agame-key-backspace "backspace")
+(const agame-key-tab    "tab")
+(const agame-key-lshift "lshift")
+(const agame-key-rshift "rshift")
+(const agame-key-lctrl  "lctrl")
+(const agame-key-rctrl  "rctrl")
+
+; ---------- Event Types ----------
+
+(const agame-event-none    "none")
+(const agame-event-quit    "quit")
+(const agame-event-keydown "keydown")
+(const agame-event-keyup   "keyup")
+(const agame-event-mousemove "mousemove")
+(const agame-event-mousedown "mousedown")
+(const agame-event-mouseup   "mouseup")
+
+; ---------- Color Helpers ----------
+
+; Create a color from RGB (alpha=255 opaque)
+(let agame-rgb (func (list r g b) "Create color (r g b 255)"
+  (list r g b 255)))
+
+; Create a color from RGBA
+(let agame-rgba (func (list r g b a) "Create color (r g b a)"
+  (list r g b a)))
+
+; Blend two colors (0.0 = first, 1.0 = second)
+(let agame-color-lerp (func (list c1 c2 t) "Blend two colors by t (0.0-1.0)"
+  (list
+    (+ (* (car c1) (- 1 t)) (* (car c2) t))
+    (+ (* (car (cdr c1)) (- 1 t)) (* (car (cdr c2)) t))
+    (+ (* (car (cdr (cdr c1))) (- 1 t)) (* (car (cdr (cdr c2))) t))
+    255)))
+
+; ---------- Drawing Convenience ----------
+
+; Draw with a color (set color, then draw)
+(let agame-line (func (list x1 y1 x2 y2 color) "Draw line with color"
+  (agame-set-color color)
+  (agame-draw-line x1 y1 x2 y2)))
+
+(let agame-rect (func (list x y w h color) "Draw rect outline with color"
+  (agame-set-color color)
+  (agame-draw-rect x y w h)))
+
+(let agame-box (func (list x y w h color) "Draw filled rect with color"
+  (agame-set-color color)
+  (agame-fill-rect x y w h)))
+
+(let agame-circle (func (list cx cy r color) "Draw circle outline with color"
+  (agame-set-color color)
+  (agame-draw-circle cx cy r)))
+
+(let agame-disc (func (list cx cy r color) "Draw filled circle with color"
+  (agame-set-color color)
+  (agame-fill-circle cx cy r)))
+
+(let agame-tri (func (list x1 y1 x2 y2 x3 y3 color) "Draw triangle outline"
+  (agame-set-color color)
+  (agame-draw-triangle x1 y1 x2 y2 x3 y3)))
+
+(let agame-fill-tri (func (list x1 y1 x2 y2 x3 y3 color) "Draw filled triangle"
+  (agame-set-color color)
+  (agame-fill-triangle x1 y1 x2 y2 x3 y3)))
+
+(let agame-pixel (func (list x y color) "Draw single pixel"
+  (agame-set-color color)
+  (agame-draw-point x y)))
+
+; ---------- Input Helpers ----------
+
+; Wrapper functions for DLL key state functions (DLL exports as _agame-key-down/up)
+; DLL returns strings "0"/"1", wrap with (num) for proper truthy behavior
+(let agame-key-down (func (list key-name) "Check if key is held down -> 1/0"
+  (num (_agame-key-down key-name))))
+
+(let agame-key-up (func (list key-name) "Check if key is released -> 1/0"
+  (num (_agame-key-up key-name))))
+
+; Check if key is currently pressed (alias for agame-key-down)
+(let agame-key-pressed (func (list key-name) "Check if key is held down -> 1/0"
+  (num (_agame-key-down key-name))))
+
+; Check if mouse button is pressed (1=left, 2=middle, 3=right)
+(let agame-mouse-pressed (func (list button) "Check if mouse button held -> 1/0"
+  (num (agame-mouse-down button))))
+
+; Get mouse position as (x y) list
+(let agame-mouse-pos (func (nil) "Get mouse position as (x y) list"
+  (list (num (agame-mouse-x)) (num (agame-mouse-y)))))
+
+; ---------- Text Drawing ----------
+
+; Draw text with specified font and color
+(let agame-text (func (list font str x y color) "Draw text with font and color"
+  (agame-set-color color)
+  (agame-draw-text font str x y)))
+
+; ---------- Game Loop Helpers ----------
+
+; Drain all pending SDL events, return 0 if quit detected, 1 otherwise
+(let agame-running? (func (nil) "Drain all events, return 1 if running, 0 if quit"
+  (let running 1)
+  (let ev (agame-poll-event))
+  (while (!= ev agame-event-none)
+    (when (== ev agame-event-quit)
+      (set running 0))
+    (set ev (agame-poll-event)))
+  running))
+
+; Simple frame delay for target FPS
+(let agame-fps-delay (func (list fps) "Delay for target frames per second"
+  (agame-delay (/ 1000 fps))))
+
+; ---------- Math Helpers for Games ----------
+
+; Clamp value between min and max
+(let agame-clamp (func (list val lo hi) "Clamp value to range [lo, hi]"
+  (if (< val lo) lo
+    (if (> val hi) hi val))))
+
+; Linear interpolation
+(let agame-lerp (func (list a b t) "Linear interpolation: a + (b-a)*t"
+  (+ a (* (- b a) t))))
+
+; Distance between two points
+(let agame-dist (func (list x1 y1 x2 y2) "Distance between (x1,y1) and (x2,y2)"
+  (sqrt (+ (^ (- x2 x1) 2) (^ (- y2 y1) 2)))))
+
+; Angle between two points (radians)
+(let agame-angle (func (list x1 y1 x2 y2) "Angle from (x1,y1) to (x2,y2) in radians"
+  (atan2 (- y2 y1) (- x2 x1))))
+
+; Random integer in range [lo, hi]
+(let agame-rand-int (func (list lo hi) "Random integer in [lo, hi]"
+  (+ lo (% (abs (random-int lo hi)) (+ (- hi lo) 1)))))
+
+; Random float in [0, 1)
+(let agame-rand (func (nil) "Random float in [0, 1)"
+  (random)))
+
+; ---------- Collision Detection ----------
+
+; AABB (rectangle) collision
+(let agame-rect-collide (func (list x1 y1 w1 h1 x2 y2 w2 h2) "AABB collision -> 1/0"
+  (and
+    (< x1 (+ x2 w2))
+    (< x2 (+ x1 w1))
+    (< y1 (+ y2 h2))
+    (< y2 (+ y1 h1)))))
+
+; Circle collision
+(let agame-circle-collide (func (list cx1 cy1 r1 cx2 cy2 r2) "Circle collision -> 1/0"
+  (< (agame-dist cx1 cy1 cx2 cy2) (+ r1 r2))))
+
+; Point in rect
+(let agame-point-in-rect (func (list px py rx ry rw rh) "Point in rect -> 1/0"
+  (and (>= px rx) (< px (+ rx rw)) (>= py ry) (< py (+ ry rh)))))
+
+; Point in circle
+(let agame-point-in-circle (func (list px py cx cy r) "Point in circle -> 1/0"
+  (< (agame-dist px py cx cy) r)))
+
+; =============================================================================
+; END OF AGAME LIBRARY
+; =============================================================================

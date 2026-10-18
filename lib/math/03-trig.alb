@@ -1,0 +1,6 @@
+; ---- Angle Conversion ----
+(let deg->rad (func (list d) "Convert degrees to radians"
+  (* d (/ pi 180))))
+
+(let rad->deg (func (list r) "Convert radians to degrees"
+  (* r (/ 180 pi))))

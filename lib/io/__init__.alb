@@ -1,0 +1,20 @@
+; =============================================================================
+; ALB IO Standard Library
+; Module: io
+; Version: 0.0.6
+; Usage: (use "io")
+; =============================================================================
+;
+; Supplements built-in IO functions:
+;   file-read, file-write, file-append, file-lines,
+;   file-exists?, file-delete,
+;   dir-list, dir-exists?, dir-create,
+;   path-join, path-ext, path-name, time-now
+;
+; Submodules (auto-loaded):
+;   01-file-utils.alb  - file-copy, file-size, file-empty?, file-backup, file-touch
+;   02-file-lines.alb  - file-write-lines, file-filter-lines, file-map-lines
+;   03-dir-utils.alb   - dir-ensure, dir-files, dir-dirs, dir-files-recursive
+;   04-path-utils.alb  - path-base, path-dir, path-change-ext, path-absolute?
+;   05-csv.alb         - csv-parse, csv-format
+; =============================================================================

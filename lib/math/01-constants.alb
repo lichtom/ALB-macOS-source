@@ -1,0 +1,6 @@
+; ---- Math Constants ----
+(const PI pi)
+(const E e)
+(const INF 1e308)
+(const TAU (* pi 2))
+(const PHI (/ (+ 1 (sqrt 5)) 2))  ; Golden ratio

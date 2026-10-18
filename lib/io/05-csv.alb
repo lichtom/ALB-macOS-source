@@ -1,0 +1,16 @@
+; ---- CSV Operations ----
+(let csv-parse (func (list text sep) "Parse CSV text into list of lists. sep defaults to comma"
+  (let delim (if (== (type sep) "nil") "," sep))
+  (map (func (list line) (str-split line delim))
+    (str-split text "\n"))))
+
+(let csv-format (func (list rows sep) "Format list of lists as CSV text"
+  (let delim (if (== (type sep) "nil") "," sep))
+  (str-join (map (func (list row) (str-join row delim)) rows) "\n")))
+
+; ---- JSON-like Serialization (simple) ----
+(let to-json-str (func (list v) "Simple value to JSON-like string"
+  (write v)))
+
+(let from-json-str (func (list s) "Parse JSON-like string to value"
+  (read s)))

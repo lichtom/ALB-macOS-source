@@ -1,0 +1,152 @@
+; =============================================================================
+; ALB GUI Standard Library
+; Module: gui
+; Version: 0.0.6
+; Usage: (use "gui")
+; =============================================================================
+;
+; Structure:
+;   __init__.alb        - This file (ALB API wrappers + helpers)
+;   gui_widgets.cpp     - Window, 13 basic controls, pack/grid/place layout
+;   gui_event.cpp       - Event loop, WndProc, callback dispatch
+;   gui_menu.cpp        - Menubar, toolbar, statusbar
+;   gui_advanced.cpp    - Listbox, treeview, notebook, progressbar
+;   gui_internal.h      - Shared C++ header
+;
+; Simple mode (tkinter-style):
+;   (gui-window "Title" 400 300)
+;   (let btn (gui-button 0 "Click" "on-click"))
+;   (gui-pack btn :side "top" :fill "x" :pad 5)
+;   (gui-run 1)
+;
+; Advanced mode (wxPython-style):
+;   (let win (gui-window "App" 800 600))
+;   (let mb (gui-menubar win))
+;   (gui-menu-add mb "File" "New|Open|-|Exit" "on-file-cmd")
+;   (let nb (gui-notebook win "on-tab-change"))
+;   (gui-tab-add nb "Tab 1")
+;   (gui-run 1)
+;
+; DLL-provided functions (loaded automatically):
+;   gui-window, gui-label, gui-button, gui-entry, gui-text,
+;   gui-checkbutton, gui-radiobutton, gui-frame, gui-canvas,
+;   gui-scrollbar, gui-spinbox, gui-scale, gui-combobox,
+;   gui-pack, gui-grid, gui-place,
+;   gui-get, gui-set, gui-config,
+;   gui-destroy, gui-show, gui-hide,
+;   gui-mainloop, gui-update,
+;   msgbox, gui-choose-file, gui-open-url, gui-beep,
+;   gui-combobox-add, gui-combobox-clear,
+;   gui-menubar, gui-menu-add, gui-toolbar, gui-toolbar-add,
+;   gui-statusbar, gui-statusbar-set,
+;   gui-listbox, gui-listbox-add, gui-listbox-clear, gui-listbox-get,
+;   gui-treeview, gui-tree-insert,
+;   gui-notebook, gui-tab-add, gui-tab-select,
+;   gui-progressbar, gui-progressbar-set
+;
+; Callbacks:
+;   GUI functions that accept a callback (gui-button, gui-checkbutton,
+;   gui-radiobutton, gui-scale, gui-scrollbar, gui-combobox, etc.)
+;   take an ALB function NAME as a string. The function is called with:
+;     (func-name widget-id event-type data)
+;   event-type: "click", "change", "select", "scroll", "tab-change", etc.
+; =============================================================================
+
+; ---------- Convenience: gui-run ----------
+; Show the main window and enter the event loop
+; Usage: (gui-run window-id)
+(let gui-run (func (list wid) "Show window and start event loop"
+  (gui-show wid)
+  (gui-mainloop)))
+
+; ---------- Convenience: gui-on-close ----------
+; Set a close handler on a window widget
+; The handler receives (widget-id event-type) and returns "0" to cancel close
+; Usage: (gui-on-close window-id "handler-name")
+(let gui-on-close (func (list wid handler) "Set close handler on window"
+  (gui-set wid :command handler)))
+
+; ---------- Convenience: gui-title ----------
+; Set window/widget title
+; Usage: (gui-title widget-id "New Title")
+(let gui-title (func (list wid title) "Set widget title"
+  (gui-set wid :text title)))
+
+; ---------- Convenience: gui-width ----------
+; Get widget width
+; Usage: (gui-width widget-id)
+(let gui-width (func (list wid) "Get widget width"
+  (gui-get wid :width)))
+
+; ---------- Convenience: gui-height ----------
+; Get widget height
+; Usage: (gui-height widget-id)
+(let gui-height (func (list wid) "Get widget height"
+  (gui-get wid :height)))
+
+; ---------- Convenience: gui-center ----------
+; Center a widget in its parent using place layout
+; Usage: (gui-center widget-id width height)
+(let gui-center (func (list wid w h) "Center widget using place layout"
+  (gui-place wid
+    :relx 500 :rely 500
+    :width w :height h)))
+
+; ---------- Convenience: gui-msgbox variants ----------
+; Quick message box helpers
+
+(let gui-info (func (list msg title)
+  "Show info message box"
+  (msgbox msg title "ok")))
+
+(let gui-confirm (func (list msg title)
+  "Show yes/no confirmation, returns 1 for yes"
+  (== (msgbox msg title "yesno") "yes")))
+
+(let gui-alert (func (list msg)
+  "Show alert with OK button"
+  (msgbox msg "Alert" "ok")))
+
+; ---------- Convenience: gui-enable / gui-disable ----------
+(let gui-enable (func (list wid)
+  "Enable a widget"
+  (gui-set wid :state "normal")))
+
+(let gui-disable (func (list wid)
+  "Disable a widget"
+  (gui-set wid :state "disabled")))
+
+; ---------- Helper: gui-checked? ----------
+; Check if a checkbutton/radiobutton is checked
+; Usage: (gui-checked? widget-id) -> 1 or 0
+(let gui-checked? (func (list wid)
+  "Check if checkbutton/radiobutton is checked"
+  (== (gui-get wid :value) "1")))
+
+; ---------- Helper: gui-selected ----------
+; Get selected index of combobox or listbox
+; Usage: (gui-selected widget-id)
+(let gui-selected (func (list wid) "Get selected index of combobox/listbox"
+  (gui-get wid :value)))
+
+; ---------- Helper: gui-entry-text ----------
+; Get text from an entry widget
+; Usage: (gui-entry-text entry-id)
+(let gui-entry-text (func (list wid) "Get entry text"
+  (gui-get wid :text)))
+
+; ---------- Helper: gui-set-text ----------
+; Set text on any widget
+; Usage: (gui-set-text widget-id "new text")
+(let gui-set-text (func (list wid text) "Set widget text"
+  (gui-set wid :text text)))
+
+; ---------- Helper: gui-scale-value ----------
+; Get current value of a scale/slider
+; Usage: (gui-scale-value scale-id)
+(let gui-scale-value (func (list wid) "Get scale/slider value"
+  (gui-get wid :value)))
+
+; =============================================================================
+; END OF GUI LIBRARY
+; =============================================================================

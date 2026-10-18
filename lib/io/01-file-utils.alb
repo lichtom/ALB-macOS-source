@@ -1,0 +1,24 @@
+; ---- File Utilities ----
+(let file-copy (func (list src dst) "Copy file from src to dst (returns 1=ok, 0=fail)"
+  (let content (file-read src))
+  (file-write dst content)
+  1))
+
+(let file-size (func (list path) "Get file size in bytes (-1 if not found)"
+  (if (== (file-exists? path) 0) -1
+    (let content (file-read path))
+    (len content))))
+
+(let file-empty? (func (list path) "Check if file is empty or doesn't exist"
+  (if (== (file-exists? path) 0) 1
+    (== (file-size path) 0))))
+
+(let file-backup (func (list path) "Create .bak backup of file"
+  (if (file-exists? path)
+    (file-copy path (str-join (list path ".bak") ""))
+    0)))
+
+(let file-touch (func (list path) "Create empty file if it doesn't exist"
+  (if (== (file-exists? path) 0)
+    (file-write path ""))
+  1))

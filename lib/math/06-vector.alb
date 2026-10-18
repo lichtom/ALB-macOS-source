@@ -1,0 +1,13 @@
+; ---- Vector Operations (2D) ----
+(let vec2-dot (func (list x1 y1 x2 y2) "2D dot product"
+  (+ (* x1 x2) (* y1 y2))))
+
+(let vec2-len (func (list x y) "2D vector length"
+  (sqrt (+ (* x x) (* y y)))))
+
+(let vec2-dist (func (list x1 y1 x2 y2) "2D distance between points"
+  (sqrt (+ (* (- x2 x1) (- x2 x1)) (* (- y2 y1) (- y2 y1))))))
+
+(let vec2-norm (func (list x y) "Normalize 2D vector"
+  (let len (sqrt (+ (* x x) (* y y))))
+  (if (== len 0) (list 0 0) (list (/ x len) (/ y len)))))

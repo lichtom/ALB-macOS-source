@@ -1,0 +1,25 @@
+; ---- Path Utilities ----
+(let path-base (func (list path) "Get filename with extension (without directory)"
+  (let p (str-replace path "\\" "/"))
+  (let idx (str-find (str-reverse p) "/"))
+  (if (== idx -1) p
+    (substr p (- (len p) idx)))))
+
+(let path-dir (func (list path) "Get directory part of path"
+  (let idx (str-find (str-reverse path) "/"))
+  (let idx2 (str-find (str-reverse path) "\\"))
+  (let pos (if (== idx -1) idx2 (if (== idx2 -1) idx (min idx idx2))))
+  (if (== pos -1) "."
+    (substr path 0 (- (len path) (+ pos 1))))))
+
+(let path-change-ext (func (list path new-ext) "Change file extension"
+  (let old-ext (path-ext path))
+  (if (== old-ext "")
+    (str-join (list path "." new-ext) "")
+    (str-join (list (path-name path) "." new-ext) ""))))
+
+(let path-absolute? (func (list path) "Check if path is absolute"
+  (or (str-starts? path "/")
+      (str-starts? path "\\")
+      (and (>= (len path) 2)
+           (str-ends? (substr path 1 1) ":")))))

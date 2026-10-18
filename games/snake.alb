@@ -1,0 +1,455 @@
+; =============================================================================
+; Snake Game - 贪吃蛇
+; 使用 ALB Agame 标准库开发
+;
+; 操作: 方向键/WASD 控制方向, ESC 退出, R 重新开始, 空格 暂停
+; 规则: 吃食物得分, 撞墙或撞自己游戏结束
+; =============================================================================
+
+(use "agame")
+
+; ========== 游戏常量 ==========
+(const WIN_W 640)
+(const WIN_H 480)
+(const CELL 20)
+(const COLS (/ WIN_W CELL))
+(const ROWS (/ WIN_H CELL))
+(const FPS 10)
+
+; 方向
+(const DIR_UP    1)
+(const DIR_DOWN  2)
+(const DIR_LEFT  3)
+(const DIR_RIGHT 4)
+
+; 颜色
+(const COLOR_BG      (list  15  15  25 255))
+(const COLOR_GRID    (list  25  25  40 255))
+(const COLOR_HEAD    (list  50 230 130 255))
+(const COLOR_BODY    (list  30 180  90 255))
+(const COLOR_BODY2   (list  20 150  70 255))
+(const COLOR_FOOD    (list 255  55  55 255))
+(const COLOR_FOOD_HI (list 255 120 120 255))
+(const COLOR_BORDER  (list  60  60  90 255))
+(const COLOR_GOLD    (list 255 210  50 255))
+(const COLOR_WHITE   (list 240 240 255 255))
+(const COLOR_RED     (list 255  50  50 255))
+(const COLOR_DIM     (list 100 100 140 255))
+
+; ========== 游戏状态变量 ==========
+(let snake nil)
+(let dir DIR_RIGHT)
+(let next-dir DIR_RIGHT)
+(let food-x 0)
+(let food-y 0)
+(let score 0)
+(let best 0)
+(let state "title")
+(let tick 0)
+(let paused 0)
+
+; ========== 初始化蛇 ==========
+(let init-snake (func (nil)
+  (let cx (floor (/ COLS 2)))
+  (let cy (floor (/ ROWS 2)))
+  (set snake (list
+    (list cx cy)
+    (list (- cx 1) cy)
+    (list (- cx 2) cy)))
+  (set dir DIR_RIGHT)
+  (set next-dir DIR_RIGHT)))
+
+; ========== 生成食物 ==========
+(let spawn-food (func (nil)
+  (let fx 0)
+  (let fy 0)
+  (let ok 0)
+  (let tries 0)
+  (while (not ok)
+    (set fx (agame-rand-int 1 (- COLS 2)))
+    (set fy (agame-rand-int 1 (- ROWS 2)))
+    (set ok 1)
+    (for (range (len snake)) (func (list i)
+      (let s (nth snake i))
+      (when (and (== (car s) fx) (== (car (cdr s)) fy))
+        (set ok 0))))
+    (+= tries 1)
+    (when (> tries 2000)
+      (set ok 1)))  ; 防止蛇填满屏幕时死循环
+  (set food-x fx)
+  (set food-y fy)))
+
+; ========== 开始/重新开始 ==========
+(let start-game (func (nil)
+  (init-snake)
+  (spawn-food)
+  (set score 0)
+  (set state "play")
+  (set tick 0)
+  (set paused 0)))
+
+; ========== 绘制背景网格 ==========
+(let draw-bg (func (nil)
+  (agame-box 0 0 WIN_W WIN_H COLOR_BG)
+  (agame-set-color COLOR_GRID)
+  (for (range (+ COLS 1)) (func (list i)
+    (agame-draw-line (* i CELL) 0 (* i CELL) WIN_H)))
+  (for (range (+ ROWS 1)) (func (list i)
+    (agame-draw-line 0 (* i CELL) WIN_W (* i CELL))))))
+
+; ========== 绘制边框 ==========
+(let draw-wall (func (nil)
+  (agame-rect 0 0 WIN_W WIN_H COLOR_BORDER)
+  (agame-rect 1 1 (- WIN_W 2) (- WIN_H 2) COLOR_BORDER)))
+
+; ========== 绘制蛇 ==========
+(let draw-snake (func (nil)
+  (let n (len snake))
+  (for (range n) (func (list i)
+    (let seg (nth snake i))
+    (let sx (* (car seg) CELL))
+    (let sy (* (car (cdr seg)) CELL))
+    (if (== i 0)
+      ; 蛇头
+      (do
+        (agame-box (+ sx 1) (+ sy 1) (- CELL 2) (- CELL 2) COLOR_HEAD)
+        ; 眼睛
+        (let ex1 0) (let ey1 0) (let ex2 0) (let ey2 0)
+        (when (== dir DIR_UP)    (set ex1 (+ sx 4)) (set ey1 (+ sy 3))
+                                  (set ex2 (+ sx 12)) (set ey2 (+ sy 3)))
+        (when (== dir DIR_DOWN)  (set ex1 (+ sx 4)) (set ey1 (+ sy 13))
+                                  (set ex2 (+ sx 12)) (set ey2 (+ sy 13)))
+        (when (== dir DIR_LEFT)  (set ex1 (+ sx 3)) (set ey1 (+ sy 4))
+                                  (set ex2 (+ sx 3)) (set ey2 (+ sy 12)))
+        (when (== dir DIR_RIGHT) (set ex1 (+ sx 13)) (set ey1 (+ sy 4))
+                                  (set ex2 (+ sx 13)) (set ey2 (+ sy 12)))
+        (agame-box ex1 ey1 4 4 agame-black)
+        (agame-box ex2 ey2 4 4 agame-black))
+      ; 蛇身 - 交替色
+      (if (== (% i 2) 0)
+        (agame-box (+ sx 2) (+ sy 2) (- CELL 4) (- CELL 4) COLOR_BODY)
+        (agame-box (+ sx 2) (+ sy 2) (- CELL 4) (- CELL 4) COLOR_BODY2)))))))
+
+; ========== 绘制食物 ==========
+(let draw-food (func (nil)
+  (set tick (+ tick 1))
+  (let pulse (sin (/ tick 4.0)))
+  (let cx (+ (* food-x CELL) (/ CELL 2)))
+  (let cy (+ (* food-y CELL) (/ CELL 2)))
+  ; 光晕
+  (agame-fill-circle cx cy (+ (/ CELL 2) 5)
+    (list (car COLOR_FOOD) (car (cdr COLOR_FOOD)) (car (cdr (cdr COLOR_FOOD))) 30))
+  ; 本体
+  (if (> pulse 0)
+    (agame-fill-circle cx cy (/ CELL 2) COLOR_FOOD)
+    (agame-fill-circle cx cy (/ CELL 2) COLOR_FOOD_HI))
+  ; 高光点
+  (agame-box (- cx 4) (- cy 4) 3 3 (list 255 255 255 160))))
+
+; ========== 简易数字显示（用竖条代表数字） ==========
+(let draw-bar-num (func (list x y val color)
+  (agame-box x y (max 4 (* val 3)) 12 color)))
+
+; ========== 绘制顶部分数栏 ==========
+(let draw-hud (func (nil)
+  (agame-box 0 0 WIN_W 24 (list 0 0 0 160))
+  ; 分数 - 用小方块表示
+  (agame-set-color COLOR_GOLD)
+  (for (range (min score 30)) (func (list i)
+    (agame-box (+ 10 (* i 8)) 6 6 12 COLOR_GOLD)))
+  ; 最高分标记
+  (when (> best 0)
+    (agame-set-color COLOR_DIM)
+    (for (range (min best 20)) (func (list i)
+      (agame-box (+ (- WIN_W 20) (* i (- 8))) 8 5 8 COLOR_DIM))))))
+
+; 取列表前 n 个元素
+(let take-n (func (list lst n)
+  (let result nil)
+  (for-i (i 0 (< i n) (+= i 1))
+    (set result (push result (nth lst i))))
+  result))
+
+; ========== 更新游戏 ==========
+(let update-game (func (nil)
+  ; 防止180度转向
+  (when (and (== next-dir DIR_UP)    (!= dir DIR_DOWN))  (set dir DIR_UP))
+  (when (and (== next-dir DIR_DOWN)  (!= dir DIR_UP))    (set dir DIR_DOWN))
+  (when (and (== next-dir DIR_LEFT)  (!= dir DIR_RIGHT)) (set dir DIR_LEFT))
+  (when (and (== next-dir DIR_RIGHT) (!= dir DIR_LEFT))  (set dir DIR_RIGHT))
+
+  ; 新头部坐标
+  (let head (car snake))
+  (let hx (car head))
+  (let hy (car (cdr head)))
+  (when (== dir DIR_UP)    (set hy (- hy 1)))
+  (when (== dir DIR_DOWN)  (set hy (+ hy 1)))
+  (when (== dir DIR_LEFT)  (set hx (- hx 1)))
+  (when (== dir DIR_RIGHT) (set hx (+ hx 1)))
+
+  ; 撞墙检测
+  (when (or (< hx 0) (>= hx COLS) (< hy 0) (>= hy ROWS))
+    (set state "over")
+    (when (> score best) (set best score)))
+
+  ; 撞自身检测
+  (when (== state "play")
+    (for (range (- (len snake) 1)) (func (list i)
+      (let s (nth snake i))
+      (when (and (== (car s) hx) (== (car (cdr s)) hy))
+        (set state "over")
+        (when (> score best) (set best score))))))
+
+  ; 移动
+  (when (== state "play")
+    (let ate (and (== hx food-x) (== hy food-y)))
+    (let new-head (list hx hy))
+    (if ate
+      ; 吃到食物 - 不去尾
+      (do
+        (set snake (cons new-head snake))
+        (+= score 1)
+        (spawn-food))
+      ; 没吃到 - 新头 + 旧身前n-1段
+      (set snake (cons new-head (take-n snake (- (len snake) 1))))))))
+
+; ========== 输入处理 ==========
+(let handle-input (func (nil)
+  ; 方向键
+  (when (agame-key-pressed "up")    (set next-dir DIR_UP))
+  (when (agame-key-pressed "down")  (set next-dir DIR_DOWN))
+  (when (agame-key-pressed agame-key-left)  (set next-dir DIR_LEFT))
+  (when (agame-key-pressed agame-key-right) (set next-dir DIR_RIGHT))
+  ; WASD
+  (when (agame-key-pressed "w") (set next-dir DIR_UP))
+  (when (agame-key-pressed "s") (set next-dir DIR_DOWN))
+  (when (agame-key-pressed "a") (set next-dir DIR_LEFT))
+  (when (agame-key-pressed "d") (set next-dir DIR_RIGHT))))
+
+; ========== 标题画面 ==========
+(let draw-title (func (nil)
+  (draw-bg)
+  (draw-wall)
+  (set tick (+ tick 1))
+
+  ; 标题 SNAKE（用色块拼字）
+  (let tx (/ (- WIN_W 260) 2))
+  (let ty 80)
+  ; S
+  (agame-box tx ty 40 8 COLOR_HEAD)
+  (agame-box tx (+ ty 8) 8 18 COLOR_HEAD)
+  (agame-box tx (+ ty 26) 40 8 COLOR_HEAD)
+  (agame-box (+ tx 32) (+ ty 34) 8 18 COLOR_HEAD)
+  (agame-box tx (+ ty 52) 40 8 COLOR_HEAD)
+  ; N
+  (let nx (+ tx 55))
+  (agame-box nx ty 8 60 COLOR_HEAD)
+  (agame-box (+ nx 8)  (+ ty 8)  8 44 COLOR_HEAD)
+  (agame-box (+ nx 16) (+ ty 16) 8 36 COLOR_HEAD)
+  (agame-box (+ nx 24) (+ ty 24) 8 28 COLOR_HEAD)
+  (agame-box (+ nx 32) ty 8 60 COLOR_HEAD)
+  ; A
+  (let ax (+ tx 110))
+  (agame-box (+ ax 8) ty 24 8 COLOR_HEAD)
+  (agame-box ax (+ ty 8) 8 52 COLOR_HEAD)
+  (agame-box (+ ax 32) (+ ty 8) 8 52 COLOR_HEAD)
+  (agame-box (+ ax 8) (+ ty 28) 24 8 COLOR_HEAD)
+  ; K
+  (let kx (+ tx 160))
+  (agame-box kx ty 8 60 COLOR_HEAD)
+  (agame-box (+ kx 32) ty 8 24 COLOR_HEAD)
+  (agame-box (+ kx 24) (+ ty 22) 8 12 COLOR_HEAD)
+  (agame-box (+ kx 16) (+ ty 28) 8 8 COLOR_HEAD)
+  (agame-box (+ kx 24) (+ ty 36) 8 8 COLOR_HEAD)
+  (agame-box (+ kx 32) (+ ty 40) 8 20 COLOR_HEAD)
+  ; E
+  (let ex (+ tx 210))
+  (agame-box ex ty 40 8 COLOR_HEAD)
+  (agame-box ex (+ ty 8) 8 18 COLOR_HEAD)
+  (agame-box ex (+ ty 26) 32 8 COLOR_HEAD)
+  (agame-box ex (+ ty 34) 8 18 COLOR_HEAD)
+  (agame-box ex (+ ty 52) 40 8 COLOR_HEAD)
+
+  ; 装饰蛇（波动）
+  (let dy 200)
+  (for (range 10) (func (list i)
+    (let sx (+ 150 (* i 22)))
+    (let sy (+ dy (* 10 (sin (/ (+ tick i) 3.0)))))
+    (let c (if (== i 0) COLOR_HEAD
+           (if (== (% i 2) 0) COLOR_BODY COLOR_BODY2)))
+    (agame-box sx (floor sy) CELL CELL c)))
+  ; 装饰食物
+  (agame-fill-circle (+ 150 (* 11 22) 10) (+ dy (floor (* 10 (sin (/ (+ tick 11) 3.0)))) 10) 10 COLOR_FOOD)
+
+  ; 提示：闪烁色块序列
+  (let py 310)
+  (let blink (> (sin (/ tick 5.0)) 0))
+  (when blink
+    (for (range 12) (func (list i)
+      (agame-box (+ (/ (- WIN_W 180) 2) (* i 15)) py 12 6 COLOR_WHITE))))
+
+  ; 底部操作提示
+  (let iy 380)
+  (for (range 8) (func (list i)
+    (agame-box (+ (/ (- WIN_W 160) 2) (* i 20)) iy 16 4 COLOR_DIM)))
+  (for (range 5) (func (list i)
+    (agame-box (+ (/ (- WIN_W 100) 2) (* i 20)) (+ iy 20) 16 4 COLOR_DIM)))
+
+  ; 最高分
+  (when (> best 0)
+    (agame-set-color COLOR_GOLD)
+    (for (range (min best 25)) (func (list i)
+      (agame-box (+ (/ (- WIN_W 200) 2) (* i 8)) 350 6 10 COLOR_GOLD))))))
+
+; ========== 游戏结束画面 ==========
+(let draw-over (func (nil)
+  ; 先画游戏场景
+  (draw-bg)
+  (draw-wall)
+  (draw-snake)
+  ; 半透明遮罩
+  (agame-box 0 0 WIN_W WIN_H (list 0 0 0 150))
+
+  (set tick (+ tick 1))
+
+  ; GAME OVER 标题
+  (let tx (/ (- WIN_W 280) 2))
+  (let ty 130)
+  ; G
+  (agame-box (+ tx 10) ty 28 8 COLOR_RED)
+  (agame-box tx (+ ty 8) 8 44 COLOR_RED)
+  (agame-box (+ tx 10) (+ ty 52) 28 8 COLOR_RED)
+  (agame-box (+ tx 30) (+ ty 30) 8 22 COLOR_RED)
+  (agame-box (+ tx 18) (+ ty 30) 12 8 COLOR_RED)
+  ; A
+  (let ax (+ tx 50))
+  (agame-box (+ ax 8) ty 24 8 COLOR_RED)
+  (agame-box ax (+ ty 8) 8 52 COLOR_RED)
+  (agame-box (+ ax 32) (+ ty 8) 8 52 COLOR_RED)
+  (agame-box (+ ax 8) (+ ty 28) 24 8 COLOR_RED)
+  ; M
+  (let mx (+ tx 95))
+  (agame-box mx ty 8 60 COLOR_RED)
+  (agame-box (+ mx 8)  (+ ty 8)  8 16 COLOR_RED)
+  (agame-box (+ mx 16) (+ ty 16) 8 16 COLOR_RED)
+  (agame-box (+ mx 24) (+ ty 8)  8 16 COLOR_RED)
+  (agame-box (+ mx 32) ty 8 60 COLOR_RED)
+  ; E
+  (let ex (+ tx 140))
+  (agame-box ex ty 36 8 COLOR_RED)
+  (agame-box ex (+ ty 8) 8 18 COLOR_RED)
+  (agame-box ex (+ ty 26) 28 8 COLOR_RED)
+  (agame-box ex (+ ty 34) 8 18 COLOR_RED)
+  (agame-box ex (+ ty 52) 36 8 COLOR_RED)
+  ; O
+  (let ox (+ tx 190))
+  (agame-box (+ ox 8) ty 24 8 COLOR_RED)
+  (agame-box ox (+ ty 8) 8 44 COLOR_RED)
+  (agame-box (+ ox 32) (+ ty 8) 8 44 COLOR_RED)
+  (agame-box (+ ox 8) (+ ty 52) 24 8 COLOR_RED)
+  ; V
+  (let vx (+ tx 235))
+  (agame-box vx ty 8 36 COLOR_RED)
+  (agame-box (+ vx 8)  (+ ty 36) 8 12 COLOR_RED)
+  (agame-box (+ vx 16) (+ ty 44) 8 16 COLOR_RED)
+  (agame-box (+ vx 24) (+ ty 36) 8 12 COLOR_RED)
+  (agame-box (+ vx 32) ty 8 36 COLOR_RED)
+  ; E
+  (let ex2 (+ tx 280))
+  (agame-box ex2 ty 36 8 COLOR_RED)
+  (agame-box ex2 (+ ty 8) 8 18 COLOR_RED)
+  (agame-box ex2 (+ ty 26) 28 8 COLOR_RED)
+  (agame-box ex2 (+ ty 34) 8 18 COLOR_RED)
+  (agame-box ex2 (+ ty 52) 36 8 COLOR_RED)
+
+  ; 分数区
+  (let sy 230)
+  (agame-box (/ (- WIN_W 220) 2) sy 220 40 (list 30 30 50 200))
+  (agame-set-color COLOR_GOLD)
+  (for (range (min score 30)) (func (list i)
+    (agame-box (+ (/ (- WIN_W 220) 2) 10 (* i 7)) (+ sy 10) 5 20 COLOR_GOLD)))
+
+  ; 最高分
+  (when (> best 0)
+    (let by (+ sy 50))
+    (for (range (min best 25)) (func (list i)
+      (agame-box (+ (/ (- WIN_W 200) 2) (* i 8)) by 6 8 COLOR_DIM))))
+
+  ; 闪烁提示
+  (let blink (> (sin (/ tick 4.0)) 0))
+  (when blink
+    (let ry 330)
+    (for (range 10) (func (list i)
+      (agame-box (+ (/ (- WIN_W 150) 2) (* i 15)) ry 12 6 COLOR_WHITE))))
+  ; ESC 提示
+  (let ey 360)
+  (for (range 6) (func (list i)
+    (agame-box (+ (/ (- WIN_W 90) 2) (* i 15)) ey 12 4 COLOR_DIM)))))
+
+; ========== 暂停画面叠加 ==========
+(let draw-pause (func (nil)
+  (agame-box 0 0 WIN_W WIN_H (list 0 0 0 100))
+  ; 暂停图标：两个竖条
+  (let cx (/ WIN_W 2))
+  (let cy (/ WIN_H 2))
+  (agame-box (- cx 20) (- cy 25) 14 50 COLOR_WHITE)
+  (agame-box (+ cx 6)  (- cy 25) 14 50 COLOR_WHITE)))
+
+; ========== 主循环 ==========
+(let main (func (nil)
+  (print "=== 贪吃蛇 Snake ===")
+  (print "方向键/WASD 控制 | 空格 暂停 | R 重新开始 | ESC 退出")
+
+  (agame-init "Snake - 贪吃蛇" WIN_W WIN_H)
+  (init-snake)
+  (spawn-food)
+
+  (while (agame-running?)
+    (handle-input)
+
+    ; ESC 退出
+    (when (agame-key-pressed agame-key-escape)
+      (break))
+
+    (cond
+      ; --- 标题画面 ---
+      ((== state "title")
+        (when (agame-key-pressed agame-key-space)
+          (start-game))
+        (when (agame-key-pressed agame-key-enter)
+          (start-game))
+        (draw-title))
+
+      ; --- 游戏中 ---
+      ((== state "play")
+        ; 暂停切换（简单方式：按住空格不更新）
+        (if (agame-key-pressed agame-key-space)
+          (do
+            (draw-bg)
+            (draw-wall)
+            (draw-food)
+            (draw-snake)
+            (draw-hud)
+            (draw-pause))
+          (do
+            (update-game)
+            (draw-bg)
+            (draw-wall)
+            (draw-food)
+            (draw-snake)
+            (draw-hud))))
+
+      ; --- 游戏结束 ---
+      ((== state "over")
+        (when (agame-key-pressed "r")
+          (start-game))
+        (draw-over)))
+
+    (agame-present)
+    (agame-fps-delay FPS))
+
+  (agame-quit)
+  (print "再见! 最高分:" best)))
+
+; ========== 运行 ==========
+(main)

@@ -1,0 +1,8 @@
+; ---- Utility Functions ----
+(let sign (func (list x) "Sign of number: -1, 0, or 1"
+  (if (> x 0) 1 (if (< x 0) -1 0))))
+
+(let lerp-angle (func (list a b t) "Interpolate angles (shortest path)"
+  (let diff (- b a))
+  (let diff2 (if (> diff pi) (- diff TAU) (if (< diff (- pi)) (+ diff TAU) diff)))
+  (+ a (* t diff2))))

@@ -1,0 +1,10 @@
+; ---- Interpolation ----
+(let lerp (func (list a b t) "Linear interpolation between a and b"
+  (+ a (* t (- b a)))))
+
+(let inverse-lerp (func (list a b v) "Inverse lerp: what t gives v between a and b"
+  (/ (- v a) (- b a))))
+
+(let remap (func (list in-min in-max out-min out-max v)
+  "Remap value from [in-min, in-max] to [out-min, out-max]"
+  (+ out-min (* (/ (- v in-min) (- in-max in-min)) (- out-max out-min)))))

@@ -1,0 +1,25 @@
+; ---- String Transform ----
+(let str-capitalize (func (list s) "Capitalize first character"
+  (if (== (len s) 0) ""
+    (str-join (list (str-upper (substr s 0 1)) (substr s 1)) ""))))
+
+(let str-decapitalize (func (list s) "Lowercase first character"
+  (if (== (len s) 0) ""
+    (str-join (list (str-lower (substr s 0 1)) (substr s 1)) ""))))
+
+(let str-title (func (list s) "Title Case: capitalize first letter of each word"
+  (str-join (map (func (list w) (str-capitalize w)) (str-split s " ")) " ")))
+
+(let str-strip-prefix (func (list s prefix) "Remove prefix if present"
+  (if (str-starts? s prefix) (substr s (len prefix)) s)))
+
+(let str-strip-suffix (func (list s suffix) "Remove suffix if present"
+  (if (str-ends? s suffix) (substr s 0 (- (len s) (len suffix))) s)))
+
+(let str-strip-both (func (list s pre suf) "Remove both prefix and suffix if present"
+  (str-strip-suffix (str-strip-prefix s pre) suf)))
+
+(let str-indent (func (list s n) "Indent each line with n spaces"
+  (let pad (str-repeat " " n))
+  (str-join (map (func (list line) (str-join (list pad line) ""))
+    (str-split s "\n")) "\n")))

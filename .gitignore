@@ -15,6 +15,7 @@ IDE/*.spec
 *.dylib
 *.so
 *.dll
+*.cppb
 
 # Python
 __pycache__/

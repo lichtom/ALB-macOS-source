@@ -1,0 +1,9 @@
+; ---- Random Utilities ----
+(let rand-float (func (list n) "Random float in [0, n)"
+  (random n)))
+
+(let rand-int (func (list a b) "Random integer in [a, b]"
+  (random-int a b)))
+
+(let rand-bool (func (list p) "Random boolean with probability p"
+  (< (random 1) p)))

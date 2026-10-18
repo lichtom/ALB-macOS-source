@@ -1,0 +1,17 @@
+; =============================================================================
+; ALB Math Standard Library
+; Module: math
+; Version: 0.0.6
+; Usage: (use "math")
+; =============================================================================
+;
+; Submodules (auto-loaded by interpreter):
+;   01-constants.alb     - PI, E, TAU, PHI, INF
+;   02-interpolation.alb - lerp, inverse-lerp, remap
+;   03-trig.alb          - deg->rad, rad->deg
+;   04-random.alb        - rand-float, rand-int, rand-bool
+;   05-utility.alb       - sign, lerp-angle
+;   06-vector.alb        - vec2-dot, vec2-len, vec2-dist, vec2-norm
+;
+; All functions are available after (use "math").
+; =============================================================================

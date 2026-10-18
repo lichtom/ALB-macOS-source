@@ -1,0 +1,17 @@
+; ---- String Query ----
+(let str-contains? (func (list s sub) "Check if string contains substring"
+  (!= (str-find s sub) -1)))
+
+(let str-empty? (func (list s) "Check if string is empty"
+  (== (len s) 0)))
+
+(let str-blank? (func (list s) "Check if string is empty or only whitespace"
+  (== (len (str-trim s)) 0)))
+
+(let str-count (func (list s sub) "Count non-overlapping occurrences of substring"
+  (if (== (len sub) 0) 0
+    (let loop (func (list pos cnt)
+      (let p (str-find (substr s pos) sub))
+      (if (== p -1) cnt
+        (loop (+ pos p (len sub)) (+ cnt 1)))))
+    (loop 0 0))))

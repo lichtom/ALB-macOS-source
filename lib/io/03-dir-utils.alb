@@ -1,0 +1,25 @@
+; ---- Directory Utilities ----
+(let dir-ensure (func (list path) "Create directory if it doesn't exist"
+  (if (== (dir-exists? path) 0)
+    (dir-create path))
+  1))
+
+(let dir-files (func (list path) "List only files in directory (no subdirs)"
+  (filter (func (list name)
+    (== (dir-exists? (path-join path name)) 0))
+    (dir-list path))))
+
+(let dir-dirs (func (list path) "List only subdirectories"
+  (filter (func (list name)
+    (== (dir-exists? (path-join path name)) 1))
+    (dir-list path))))
+
+(let dir-files-recursive (func (list path) "Recursively list all files"
+  (fold (func (list acc name)
+    (let full (path-join path name))
+    (if (== (dir-exists? full) 1)
+      (do
+        (let sub (dir-files-recursive full))
+        (fold (func (list a2 item) (push a2 item)) sub acc))
+      (push acc full)))
+    (dir-list path) (list))))

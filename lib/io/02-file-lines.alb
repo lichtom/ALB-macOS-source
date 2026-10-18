@@ -1,0 +1,13 @@
+; ---- File Line Operations ----
+(let file-write-lines (func (list path lst) "Write list of strings as lines to file"
+  (file-write path (str-join lst "\n"))))
+
+(let file-filter-lines (func (list path fn) "Read file, keep lines where fn returns true"
+  (filter fn (file-lines path))))
+
+(let file-map-lines (func (list path fn) "Read file, apply fn to each line, return list"
+  (map fn (file-lines path))))
+
+(let file-replace-lines (func (list path from to) "Replace all lines matching 'from' with 'to'"
+  (file-write-lines path
+    (map (func (list line) (if (== line from) to line)) (file-lines path)))))
